@@ -69,13 +69,13 @@ save_resized_album_art(image_s *imsrc, const char *path)
 
 	if( imsrc->width > imsrc->height )
 	{
-		dstw = 160;
-		dsth = (imsrc->height<<8) / ((imsrc->width<<8)/160);
+		dstw = runtime_vars.thumb_width;
+		dsth = (imsrc->height<<8) / ((imsrc->width<<8) / runtime_vars.thumb_width);
 	}
 	else
 	{
-		dstw = (imsrc->width<<8) / ((imsrc->height<<8)/160);
-		dsth = 160;
+		dstw = (imsrc->width<<8) / ((imsrc->height<<8) / runtime_vars.thumb_width);
+		dsth = runtime_vars.thumb_width;
 	}
 	imdst = image_resize(imsrc, dstw, dsth);
 	if( !imdst )
@@ -216,7 +216,7 @@ check_embedded_art(const char *path, uint8_t *image_data, int image_size)
 	width = imsrc->width;
 	height = imsrc->height;
 
-	if( width > 160 || height > 160 )
+	if( width > runtime_vars.thumb_width || height > runtime_vars.thumb_width )
 	{
 		art_path = save_resized_album_art(imsrc, path);
 	}

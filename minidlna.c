@@ -589,6 +589,7 @@ init(int argc, char **argv)
 	runtime_vars.max_connections = 50;
 	runtime_vars.root_container = NULL;
 	runtime_vars.ifaces[0] = NULL;
+	runtime_vars.thumb_width = 160;
 
 	/* read options file first since
 	 * command line arguments have final say */
@@ -812,6 +813,13 @@ init(int argc, char **argv)
 		case ENABLE_SUBTITLES:
 			if (!strtobool(ary_options[i].value))
 				CLEARFLAG(SUBTITLES_MASK);
+			break;
+		case THUMB_WIDTH:
+			runtime_vars.thumb_width = atoi(ary_options[i].value);
+			if (runtime_vars.thumb_width < 120)
+				runtime_vars.thumb_width = 120;
+			if (runtime_vars.thumb_width > 600)
+				runtime_vars.thumb_width = 600;
 			break;
 		default:
 			DPRINTF(E_ERROR, L_GENERAL, "Unknown option in file %s\n",

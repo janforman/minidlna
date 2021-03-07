@@ -65,6 +65,7 @@ static const struct {
 	{ FORCE_SORT_CRITERIA, "force_sort_criteria" },
 	{ MAX_CONNECTIONS, "max_connections" },
 	{ MERGE_MEDIA_DIRS, "merge_media_dirs" },
+	{ THUMB_WIDTH, "thumbnail_width" },
 	{ WIDE_LINKS, "wide_links" },
 	{ TIVO_DISCOVERY, "tivo_discovery" },
 	{ ENABLE_SUBTITLES, "enable_subtitles" },

@@ -1,7 +1,7 @@
 MiniDLNA project
-(c) 2009 Justin Maggard
+(c) 2020 Justin Maggard
 Portions (c) 2006-2007 Thomas Bernard
-webpage: http://sourceforge.net/projects/minidlna/
+webpage: https://sourceforge.net/projects/minidlna/
 
 This directory contains the MiniDLNA daemon software.
 This software is subject to the conditions detailed in
@@ -15,8 +15,8 @@ More information on MiniUPnPd can be found at http://miniupnp.free.fr.
 
 The MiniDLNA daemon is an UPnP-A/V and DLNA service which
 serves multimedia content to compatible clients on the network.
-See http://www.upnp.org/ for more details on UPnP
-and http://www.dlna.org/ for mode details on DLNA.
+See https://openconnectivity.org for more details on UPnP
+and https://www.dlna.org/ for mode details on DLNA.
 
 Prerequisites
 ==================
@@ -29,5 +29,6 @@ Prerequisites
 - libsqlite3
 - libavformat (the ffmpeg libraries)
 
-
-Justin Maggard
+Modified
+==================
+This version can send up to 600px thumbnails selectable by config param.

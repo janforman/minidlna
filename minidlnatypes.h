@@ -51,6 +51,7 @@ struct runtime_vars_s {
 	int max_connections;	/* max number of simultaneous conenctions */
 	const char *root_container;	/* root ObjectID (instead of "0") */
 	const char *ifaces[MAX_LAN_ADDR];	/* list of configured network interfaces */
+	int thumb_width;
 };
 
 struct string_s {

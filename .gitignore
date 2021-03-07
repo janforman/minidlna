@@ -16,7 +16,9 @@ conftest.*
 configure
 depcomp
 install-sh
+linux/minidlna.init.d.script
 m4/
+minidlnad
 missing
 mkinstalldirs
 po/Makefile.in.in

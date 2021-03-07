@@ -49,7 +49,7 @@
 # define SWAP16(w) (w)
 #endif
 
-#define JPEG_QUALITY  96
+#define JPEG_QUALITY  92
 
 #define COL(red, green, blue) (((red) << 24) | ((green) << 16) | ((blue) << 8) | 0xFF)
 #define COL_FULL(red, green, blue, alpha) (((red) << 24) | ((green) << 16) | ((blue) << 8) | (alpha))
@@ -455,8 +455,8 @@ image_new_from_jpeg(const char *path, int is_file, const uint8_t *buf, int size,
 	jpeg_read_header(&cinfo, TRUE);
 	cinfo.scale_denom = scale;
 	cinfo.do_fancy_upsampling = FALSE;
-	cinfo.do_block_smoothing = FALSE;
-	cinfo.dct_method = JDCT_IFAST;
+	cinfo.do_block_smoothing = TRUE;
+	cinfo.dct_method = JDCT_ISLOW;
 	jpeg_start_decompress(&cinfo);
 	w = cinfo.output_width;
 	h = cinfo.output_height;
