@@ -293,15 +293,14 @@ upnp_event_create_notify(struct subscriber *sub)
 	DPRINTF(E_DEBUG, L_HTTP, "%s: '%s' %hu '%s'\n", "upnp_event_notify_connect",
 	       obj->addrstr, port, obj->path);
 	obj->state = EConnecting;
+	obj->ev = (struct event ){ .fd = s, .rdwr = EVENT_WRITE,
+		.process = upnp_event_process_notify, .data = obj };
+	event_module.add(&obj->ev);
 	if(connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		if(errno != EINPROGRESS && errno != EWOULDBLOCK) {
 			DPRINTF(E_ERROR, L_HTTP, "%s: connect(): %s\n", "upnp_event_notify_connect", strerror(errno));
 			obj->state = EError;
 		}
-	} else {
-		obj->ev = (struct event ){ .fd = s, .rdwr = EVENT_WRITE,
-		    .process = upnp_event_process_notify, .data = obj };
-		event_module.add(&obj->ev);
 	}
 
 	return;
