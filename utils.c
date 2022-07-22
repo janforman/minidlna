@@ -349,6 +349,10 @@ mime_to_ext(const char * mime)
 				return "ogg";
 			else if( strcmp(mime+6, "x-dsd") == 0 )
 				return "dsd";
+			else if( strcmp(mime+6, "x-dsf") == 0 )
+				return "dsd";
+			else if( strcmp(mime+6, "x-dff") == 0 )
+				return "dsd";
 			break;
 		case 'v':
 			if( strcmp(mime+6, "avi") == 0 )

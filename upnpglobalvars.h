@@ -172,6 +172,8 @@
 	"http-get:*:audio/x-wav:*," \
 	"http-get:*:audio/x-flac:*," \
 	"http-get:*:audio/x-dsd:*," \
+	"http-get:*:audio/x-dsf:*," \
+	"http-get:*:audio/x-dff:*," \
 	"http-get:*:application/ogg:*" \
 	"http-get:*:application/vnd.rn-realmedia:*" \
 	"http-get:*:application/vnd.rn-realmedia-vbr:*" \
