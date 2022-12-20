@@ -40,10 +40,10 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
 # Default string definitions
-AC_DEFINE_UNQUOTED([OS_URL],"https://github.com/janforman/minidlna",[OS URL])
-AC_DEFINE_UNQUOTED([ROOTDEV_MANUFACTURER],"DLNA server for Linux", [Manufacturer])
-AC_DEFINE_UNQUOTED([ROOTDEV_MANUFACTURERURL],"https://janforman.com", [Manufacturer URL])
-AC_DEFINE_UNQUOTED([ROOTDEV_MODELNAME],"Digital media server (MiniDLNA)", [Model name])
+AC_DEFINE_UNQUOTED([OS_URL],"http://sourceforge.net/projects/minidlna/",[OS URL])
+AC_DEFINE_UNQUOTED([ROOTDEV_MANUFACTURER],"Justin Maggard", [Manufacturer])
+AC_DEFINE_UNQUOTED([ROOTDEV_MANUFACTURERURL],"http://www.netgear.com/", [Manufacturer URL])
+AC_DEFINE_UNQUOTED([ROOTDEV_MODELNAME],"Windows Media Connect compatible (MiniDLNA)", [Model name])
 AC_DEFINE_UNQUOTED([ROOTDEV_MODELDESCRIPTION],"MiniDLNA on " OS_NAME, [Model description])
 AC_DEFINE_UNQUOTED([ROOTDEV_MODELURL],OS_URL,[Model URL])
 
@@ -404,7 +404,7 @@ for dir in "" /usr/local $SEARCH_DIR; do
     AC_CHECK_LIB([exif], [exif_data_new_from_file], [LIBEXIF_LIBS="-lexif"], [unset ac_cv_lib_exif_exif_data_new_from_file; LDFLAGS="$LDFLAGS_SAVE"; continue])
     break
 done
-test x"$ac_cv_lib_jpeg_jpeg_set_defaults" = x"yes" || AC_MSG_ERROR([Could not find libexif])
+test x"$ac_cv_lib_exif_exif_data_new_from_file" = x"yes" || AC_MSG_ERROR([Could not find libexif])
 AC_SUBST(LIBEXIF_LIBS)
 
 LDFLAGS_SAVE="$LDFLAGS"
@@ -495,7 +495,12 @@ AC_CHECK_HEADERS([arpa/inet.h asm/unistd.h endian.h machine/endian.h fcntl.h lib
 test x"$ac_cv_header_poll_h" != x"yes" && AC_MSG_ERROR([poll.h not found or not usable])
 test x"$ac_cv_header_sys_queue_h" != x"yes" && AC_MSG_ERROR([sys/queue.h not found or not usable])
 
-AC_CHECK_FUNCS(inotify_init, AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel has inotify support]), [
+AC_CHECK_FUNCS(inotify_init, 
+[
+    AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel has inotify support])
+    AM_CONDITIONAL(HAVE_INOTIFY, true)
+],
+[
     AC_MSG_CHECKING([for __NR_inotify_init syscall])
     AC_COMPILE_IFELSE(
          [AC_LANG_PROGRAM(
@@ -511,9 +516,11 @@ AC_CHECK_FUNCS(inotify_init, AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel has inotif
          [
              AC_MSG_RESULT([yes])
              AC_DEFINE(HAVE_INOTIFY,1,[Whether kernel has inotify support])
+             AM_CONDITIONAL(HAVE_INOTIFY, true)
          ],
          [
              AC_MSG_RESULT([no])
+             AM_CONDITIONAL(HAVE_INOTIFY, false)
          ])
 ])
 
@@ -545,7 +552,7 @@ AC_DEFINE_UNQUOTED([OS_VERSION],"${with_osver}",[OS Version])
 
 AC_ARG_WITH(os-url,
 	AS_HELP_STRING([--with-os-url=URL],[OS URL]),
-	[with_osurl="$withval"],[with_osurl="https://github.com/janforman/minidlna"])
+	[with_osurl="$withval"],[with_osurl="http://www.netgear.com"])
 AC_DEFINE_UNQUOTED([OS_URL],"${with_osurl}",[OS URL])
 
 
