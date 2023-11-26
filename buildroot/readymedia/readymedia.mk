@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-READYMEDIA_VERSION = v1_3_1
+READYMEDIA_VERSION = v1_3_3
 READYMEDIA_SITE = https://git.code.sf.net/p/minidlna/git
 READYMEDIA_SITE_METHOD = git
 READYMEDIA_LICENSE = GPL-2.0, BSD-3-Clause
