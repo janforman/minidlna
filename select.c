@@ -142,11 +142,13 @@ select_del(struct event *ev, int flags)
 }
 
 static int
-select_process(u_long msec)
+select_process(struct timeval * input)
 {
 	struct timeval tv, *tp;
 	struct event *ev;
 	int ready, i;
+	unsigned long msec;
+	msec = (unsigned long)input;
 
 	/* Need to rescan for max_fd. */
 	if (max_fd == -1)
