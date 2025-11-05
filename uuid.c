@@ -36,6 +36,7 @@
 #if HAVE_MACH_MACH_TIME_H
 #include <mach/mach_time.h>
 #elif HAVE_CLOCK_GETTIME_SYSCALL
+#include <asm/unistd.h>
 #include <sys/syscall.h>
 #endif
 
