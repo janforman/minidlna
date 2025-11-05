@@ -433,6 +433,7 @@ rescan:
 			SETFLAG(SCANNING_MASK);
 #else
 		start_scanner();
+		sqlite3_close(db);
 #endif
 	}
 }
