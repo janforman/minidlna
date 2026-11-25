@@ -36,6 +36,22 @@
 #define GET_DFF_INT16(p) ((((uint16_t)((p)[0])) << 8) |   \
 			  (((uint16_t)((p)[1]))))
 
+/* Upper bound for the PROP and DIIN chunks, which are read into memory
+ * as a whole.  Real-world chunks are a few hundred bytes. */
+#define DFF_MAX_CHUNK_SIZE (1024 * 1024)
+
+/* Skip over chunk data.  A size that does not fit in off_t would turn
+ * into a backwards seek and make the parser loop forever. */
+static int
+_dff_skip(FILE *fp, uint64_t size)
+{
+	uint64_t max = sizeof(off_t) == 8 ? (uint64_t)INT64_MAX : (uint64_t)INT32_MAX;
+
+	if (size > max)
+		return -1;
+	return fseeko(fp, (off_t)size, SEEK_CUR);
+}
+
 static int
 _get_dfffileinfo(char *file, struct song_metadata *psong)
 {
@@ -60,13 +76,8 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 	unsigned char compressionType[4] = { 0 };
 	unsigned char dsdsdckData[12] = { 0 };
 	uint64_t dsdsdckDataSize = 0;
-	uint64_t cmprckDataSize = 0;
-	uint64_t abssckDataSize = 0;
-	uint64_t lscockDataSize = 0;
 	uint64_t comtckDataSize = 0;
 	uint64_t diinckDataSize = 0;
-	uint64_t diarckDataSize = 0;
-	uint64_t ditickDataSize = 0;
 	uint64_t manfckDataSize = 0;
 
 	//DPRINTF(E_DEBUG,L_SCANNER,"Getting DFF fileinfo =%s\n",file);
@@ -124,14 +135,28 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 		//Property chunk
 		if (strncmp((char*)ckbuf, "PROP", 4) == 0)
 		{
+			unsigned char *propckData;
+
 			propckDataSize = GET_DFF_INT64(ckbuf + 4);
+			if (propckDataSize < 4 || propckDataSize > DFF_MAX_CHUNK_SIZE)
+			{
+				DPRINTF(E_WARN, L_SCANNER, "Invalid Property chunk size in %s\n", file);
+				fclose(fp);
+				return -1;
+			}
 			totalcount += propckDataSize + 12;
 
-			unsigned char propckData[propckDataSize];
+			propckData = malloc(propckDataSize);
+			if (!propckData)
+			{
+				fclose(fp);
+				return -1;
+			}
 
 			if (!(rt = fread(propckData, propckDataSize, 1, fp)))
 			{
 				DPRINTF(E_WARN, L_SCANNER, "Could not read Property chunk from %s\n", file);
+				free(propckData);
 				fclose(fp);
 				return -1;
 			}
@@ -139,61 +164,64 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 			if (strncmp((char*)propckData, "SND ", 4))
 			{
 				DPRINTF(E_WARN, L_SCANNER, "Invalid Property chunk in %s\n", file);
+				free(propckData);
 				fclose(fp);
 				return -1;
 			}
 
-			count += 4;
-			while (count < propckDataSize)
+			/* Each sub-chunk is: 4-byte ID, 8-byte size, data.
+			 * Make sure the header and the data fit in the chunk. */
+			count = 4;
+			while (count + 12 <= propckDataSize)
 			{
+				uint64_t subsize = GET_DFF_INT64(propckData + count + 4);
+				unsigned char *subdata = propckData + count + 12;
+
+				if (subsize > propckDataSize - count - 12)
+					break;
+
 				if (strncmp((char*)propckData + count, "FS  ", 4) == 0)
 				{
 					//Sample Rate Chunk
-					count += 12;
-					samplerate = GET_DFF_INT32(propckData + count);
+					if (subsize < 4)
+						break;
+					samplerate = GET_DFF_INT32(subdata);
 					psong->samplerate = samplerate;
-					count += 4;
 
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "Sample Rate is %d\n", psong->samplerate);
 				}
 				else if (strncmp((char*)propckData + count, "CHNL", 4) == 0)
 				{
 					//Channels Chunk
-					count += 12;
-					channels = GET_DFF_INT16(propckData + count);
+					if (subsize < 2)
+						break;
+					channels = GET_DFF_INT16(subdata);
 					psong->channels = channels;
-					count += channels * 4 + 2;
 
 					//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "channels is %d\n", channels);
 				}
 				else if (strncmp((char*)propckData + count, "CMPR", 4) == 0)
 				{
 					//Compression Type Chunk
-					count += 4;
-					cmprckDataSize = GET_DFF_INT64(propckData + count);
-					count += 8;
-					memcpy(compressionType, propckData + count, 4);
-					count += cmprckDataSize;
+					if (subsize < 4)
+						break;
+					memcpy(compressionType, subdata, 4);
 				}
 				else if (strncmp((char*)propckData + count, "ABSS", 4) == 0)
 				{
 					//Absolute Start Time Chunk
-					count += 4;
-					abssckDataSize = GET_DFF_INT64(propckData + count);
-					count += abssckDataSize + 8;
 				}
 				else if (strncmp((char*)propckData + count, "LSCO", 4) == 0)
 				{
 					//Loudsperaker Configuration Chunk
-					count += 4;
-					lscockDataSize = GET_DFF_INT64(propckData + count);
-					count += lscockDataSize + 8;
 				}
 				else
 				{
 					break;
 				}
+				count += 12 + subsize;
 			}
+			free(propckData);
 
 			//bitrate bitpersample is 1bit
 			psong->bitrate = channels * samplerate * 1;
@@ -219,11 +247,13 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 				//DSD
 				dsdsdckDataSize = GET_DFF_INT64(dsdsdckData + 4);
 				totalcount += dsdsdckDataSize + 12;
-				psong->song_length = (int)((double)dsdsdckDataSize / (double)samplerate / (double)channels * 8 * 1000);
+				if (samplerate && channels)
+					psong->song_length = (int)((double)dsdsdckDataSize / (double)samplerate / (double)channels * 8 * 1000);
 
 				//DEBUG DPRINTF(E_DEBUG, L_SCANNER, "songlength is %d\n", psong->song_length);
 
-				fseeko(fp, dsdsdckDataSize, SEEK_CUR);
+				if (_dff_skip(fp, dsdsdckDataSize))
+					break;
 			}
 			else if (strncmp((char*)dsdsdckData, "DST ", 4) == 0)
 			{
@@ -242,12 +272,14 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 				if (strncmp((char*)frteckData, "FRTE", 4) == 0)
 				{
 					//uint64_t frteckDataSize = GET_DFF_INT64(frteckData+4);
-					numFrames = GET_DFF_INT32((char*)frteckData + 12);
-					frameRate = GET_DFF_INT16((char*)frteckData + 16);
+					numFrames = GET_DFF_INT32(frteckData + 12);
+					frameRate = GET_DFF_INT16(frteckData + 16);
 
-					psong->song_length = numFrames / frameRate * 1000;
+					if (frameRate)
+						psong->song_length = numFrames / frameRate * 1000;
 
-					fseeko(fp, dsdsdckDataSize - 18, SEEK_CUR);
+					if (dsdsdckDataSize < 18 || _dff_skip(fp, dsdsdckDataSize - 18))
+						break;
 				}
 				else
 				{
@@ -276,7 +308,8 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 				{
 					dstickDataSize = GET_DFF_INT64(dstickData + 4);
 					totalcount += dstickDataSize + 12;
-					fseeko(fp, dstickDataSize, SEEK_CUR);
+					if (_dff_skip(fp, dstickDataSize))
+						break;
 				}
 				else
 				{
@@ -295,78 +328,90 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 			//COMT Chunk
 			comtckDataSize = GET_DFF_INT64(ckbuf + 4);
 			totalcount += comtckDataSize + 12;
-			fseeko(fp, comtckDataSize, SEEK_CUR);
+			if (_dff_skip(fp, comtckDataSize))
+				break;
 		}
 		else if (!strncmp((char*)ckbuf, "DIIN", 4))
 		{
 			//Edited Master Information chunk
-			diinckDataSize = GET_DFF_INT64(ckbuf + 4);
-			unsigned char diinckData[diinckDataSize];
-			totalcount += diinckDataSize + 12;
+			unsigned char *diinckData;
 
-			if (!(rt = fread(diinckData, diinckDataSize, 1, fp)))
+			diinckDataSize = GET_DFF_INT64(ckbuf + 4);
+			totalcount += diinckDataSize + 12;
+			if (diinckDataSize == 0 || diinckDataSize > DFF_MAX_CHUNK_SIZE)
 			{
-				DPRINTF(E_WARN, L_SCANNER, "Could not read Edited Master Information chunk from %s\n", file);
+				/* Optional metadata: skip it, keep the audio info */
+				DPRINTF(E_WARN, L_SCANNER, "Skipping Edited Master Information chunk of invalid size in %s\n", file);
+				if (_dff_skip(fp, diinckDataSize))
+					break;
+				continue;
+			}
+
+			diinckData = malloc(diinckDataSize);
+			if (!diinckData)
+			{
 				fclose(fp);
 				return -1;
 			}
 
-			uint64_t icount = 0;
-			while (icount < diinckDataSize)
+			if (!(rt = fread(diinckData, diinckDataSize, 1, fp)))
 			{
+				DPRINTF(E_WARN, L_SCANNER, "Could not read Edited Master Information chunk from %s\n", file);
+				free(diinckData);
+				fclose(fp);
+				return -1;
+			}
+
+			/* Each sub-chunk is: 4-byte ID, 8-byte size, data.
+			 * Make sure the header and the data fit in the chunk. */
+			uint64_t icount = 0;
+			while (icount + 12 <= diinckDataSize)
+			{
+				uint64_t subsize = GET_DFF_INT64(diinckData + icount + 4);
+				unsigned char *subdata = diinckData + icount + 12;
+
+				if (subsize > diinckDataSize - icount - 12)
+					break;
+
 				if (!strncmp((char*)diinckData + icount, "EMID", 4))
 				{
 					//Edited Master ID chunk
-					icount += 4;
-					icount += GET_DFF_INT64(diinckData + icount) + 8;
 				}
 				else if (!strncmp((char*)diinckData + icount, "MARK", 4))
 				{
 					//Master Chunk
-					icount += 4;
-					icount += GET_DFF_INT64(diinckData + icount) + 8;
 				}
 				else if (!strncmp((char*)diinckData + icount, "DIAR", 4))
 				{
-					//Artist Chunk
-					icount += 4;
-					diarckDataSize = GET_DFF_INT64(diinckData + icount);
-					unsigned char arttext[diarckDataSize + 1 - 4];
-
-					icount += 12;
-
-					memset(arttext, 0x00, sizeof(arttext));
-					strncpy((char*)arttext, (char*)diinckData + icount, sizeof(arttext) - 1);
-					psong->contributor[ROLE_ARTIST] = strdup((char*)&arttext[0]);
-
-					icount += diarckDataSize - 4;
+					//Artist Chunk: 4-byte text length, then the text
+					if (subsize < 4)
+						break;
+					if (!psong->contributor[ROLE_ARTIST])
+						psong->contributor[ROLE_ARTIST] = strndup((char*)subdata + 4, subsize - 4);
 				}
 				else if (!strncmp((char*)diinckData + icount, "DITI", 4))
 				{
-					//Title Chunk
-					icount += 4;
-					ditickDataSize = GET_DFF_INT64(diinckData + icount);
-					unsigned char titletext[ditickDataSize + 1 - 4];
-
-					icount += 12;
-
-					memset(titletext, 0x00, sizeof(titletext));
-					strncpy((char*)titletext, (char*)diinckData + icount, sizeof(titletext) - 1);
-					psong->title = strdup((char*)&titletext[0]);
-					icount += ditickDataSize - 4;
+					//Title Chunk: 4-byte text length, then the text
+					if (subsize < 4)
+						break;
+					if (!psong->title)
+						psong->title = strndup((char*)subdata + 4, subsize - 4);
 				}
 				else
 				{
 					break;
 				}
+				icount += 12 + subsize;
 			}
+			free(diinckData);
 		}
 		else if (!strncmp((char*)ckbuf, "MANF", 4))
 		{
 			//Manufacturer Specific Chunk
 			manfckDataSize = GET_DFF_INT64(ckbuf + 4);
 			totalcount += manfckDataSize + 12;
-			fseeko(fp, manfckDataSize, SEEK_CUR);
+			if (_dff_skip(fp, manfckDataSize))
+				break;
 		}
 	}
 
@@ -374,15 +419,10 @@ _get_dfffileinfo(char *file, struct song_metadata *psong)
 
 	//DPRINTF(E_DEBUG, L_SCANNER, "totalsize is 0x%016lx\n", (long unsigned int)totalsize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "propckDataSize is 0x%016lx\n", (long unsigned int)propckDataSize);
-	//DPRINTF(E_DEBUG, L_SCANNER, "cmprckDataSize is 0x%016lx\n", (long unsigned int)cmprckDataSize);
-	//DPRINTF(E_DEBUG, L_SCANNER, "abssckDataSize is 0x%016lx\n", (long unsigned int)abssckDataSize);
-	//DPRINTF(E_DEBUG, L_SCANNER, "lscockDataSize is 0x%016lx\n", (long unsigned int)lscockDataSize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "dsdsdckDataSize is 0x%016lx\n", (long unsigned int)dsdsdckDataSize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "dstickDataSize is 0x%016lx\n", (long unsigned int)dstickDataSize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "comtckDataSize is 0x%016lx\n", (long unsigned int)comtckDataSize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "diinckDataSize is 0x%016lx\n", (long unsigned int)diinckDataSize);
-	//DPRINTF(E_DEBUG, L_SCANNER, "diarckDataSize is 0x%016lx\n", (long unsigned int)diarckDataSize);
-	//DPRINTF(E_DEBUG, L_SCANNER, "ditickDataSize is 0x%016lx\n", (long unsigned int)ditickDataSize);
 	//DPRINTF(E_DEBUG, L_SCANNER, "manfckDataSize is 0x%016lx\n", (long unsigned int)manfckDataSize);
 
 
