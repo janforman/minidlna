@@ -115,6 +115,10 @@ select_add(struct event *ev)
 static int
 select_del(struct event *ev, int flags)
 {
+	if (events == NULL || ev->index < 0) {
+			ev->index = -1;
+			return (0);
+	}
 
 	assert(ev->fd < FD_SETSIZE);
 
