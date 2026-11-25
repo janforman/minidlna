@@ -408,6 +408,14 @@ upnp_event_process_notify(struct event *ev)
 	switch(obj->state) {
 	case EConnecting:
 		/* now connected or failed to connect */
+		if (!obj->sub) {
+			/* The subscriber was removed (UNSUBSCRIBE) while
+			 * we were connecting: drop the notification. */
+			DPRINTF(E_DEBUG, L_HTTP, "upnp_event_process_notify: subscriber gone, dropping notify\n");
+			obj->state = EFinished;
+			event_module.del(&obj->ev, EV_FLAG_CLOSING);
+			break;
+		}
 		upnp_event_prepare(obj);
 		upnp_event_send(obj);
 		break;
